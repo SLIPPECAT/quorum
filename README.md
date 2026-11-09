@@ -29,8 +29,8 @@ Scenario: 40 minutes before judging, the schedule has already been sent to 60 te
 
 ## Try it (2 minutes)
 
-1. Open https://quorum-c0mpiled17.vercel.app → **New session**, join as **Ji-won** (names are case-sensitive: `Ji-won`, `Min`, `Alex`).
-2. Copy the link and open it in two private windows as **Min** and **Alex**.
+1. Open https://quorum-c0mpiled17.vercel.app → **Create a demo session**, then **Open as Ji-won** first, then **Min** and **Alex** (each opens in a new tab; names are case-sensitive).
+2. Or use **New session** and share the link yourself.
 3. As Ji-won: **Load demo data** → **Run agent**. Watch the steps stream into all three windows.
 4. When "8 teams don't fit" appears, the decision card is clickable only for Ji-won and Alex. Pick an option as Ji-won.
 5. Click **Rule map** to see the team's rules, who owns them, and what the agent may do alone.
