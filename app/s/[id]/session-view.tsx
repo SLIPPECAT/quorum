@@ -104,6 +104,12 @@ function TopBar({ people }: { people: Person[] }) {
           {copied ? "Copied" : "Share link"}
         </button>
         <button
+          onClick={loadDemo}
+          className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:bg-page"
+        >
+          Load demo data
+        </button>
+        <button
           onClick={agent.run}
           disabled={agent.disabled}
           className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
