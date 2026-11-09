@@ -27,6 +27,14 @@ Scenario: 40 minutes before judging, the schedule has already been sent to 60 te
 4. **Decision → rule.** Ji-won picks A → 0 conflicts → locked for everyone. She saves it as a rule for all events after a code-computed impact preview; it appears live on the team's rule map.
 5. **Not supported yet.** Ji-won: "Room 2's projector is broken until 15:30." The agent can't plan around room outages yet, so it saves a *proposed* rule instead of guessing.
 
+## Try it (2 minutes)
+
+1. Open https://quorum-c0mpiled17.vercel.app → **New session**, join as **Ji-won** (names are case-sensitive: `Ji-won`, `Min`, `Alex`).
+2. Copy the link and open it in two private windows as **Min** and **Alex**.
+3. As Ji-won: **Load demo data** → **Run agent**. Watch the steps stream into all three windows.
+4. When "8 teams don't fit" appears, the decision card is clickable only for Ji-won and Alex. Pick an option as Ji-won.
+5. Click **Rule map** to see the team's rules, who owns them, and what the agent may do alone.
+
 ## Next steps
 
 - Direct edits (swap rooms, reassign judges, add or withdraw teams) checked by the same validator, asking a rule's owner before bending it
