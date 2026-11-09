@@ -66,7 +66,7 @@ function TopBar({ people }: { people: Person[] }) {
       <span className="text-sm text-muted">c0mpiled-17 Seoul / Judging schedule</span>
       {published && (
         <span data-testid="published" className="rounded-full border border-line px-2.5 py-1 text-xs text-muted">
-          Published to {published.teams} teams · {published.time}
+          {published.note ?? `Published to ${published.teams} teams · ${published.time}`}
         </span>
       )}
       <div className="min-w-0" data-testid="status-badge">

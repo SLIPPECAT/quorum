@@ -260,14 +260,17 @@ export function ResultSummary() {
   const feed = useStorage((root) => root.feed);
   if (!locked) return null;
 
-  const messages = Object.values(comments).flat().filter((c) => c.agentReply).length;
-  const renotified = renotifyCount(published?.slots, slots);
+  const all = Object.values(comments).flat();
+  const messages = all.filter((c) => c.agentReply).length;
+  const appliedQuietly = all.filter((c) => c.applied).length;
+  const renotified = (published?.notifiedTotal ?? 0) + renotifyCount(published?.slots, slots);
   const first = feed.find((f) => f.text.includes("redirected the agent") && f.at);
   const lock = [...feed].reverse().find((f) => f.text.includes("locked the schedule") && f.at);
   const secs = first && lock ? Math.max(0, Math.round((lock.at! - first.at!) / 1000)) : null;
   const elapsed = secs === null ? "—" : `${secs} s`;
   const rows: [string, string][] = [
     ["Messages handled", String(messages)],
+    ["Applied without asking", String(appliedQuietly)],
     ["Decisions", String(chosen)],
     ["Teams re-notified", String(renotified)],
     ["Cells moved by hand", "0"],

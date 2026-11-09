@@ -52,6 +52,24 @@ export function renotifyCount(published: Slots | null | undefined, next: Slots):
   return n;
 }
 
+/** The moved teams themselves, sorted (same rule as renotifyCount). */
+export function movedTeams(published: Slots | null | undefined, next: Slots): string[] {
+  if (!published) return [];
+  const cellOf = (slots: Slots) => {
+    const m = new Map<string, string>();
+    for (const [room, times] of Object.entries(slots)) for (const [t, team] of Object.entries(times)) if (team) m.set(team, `${room}|${t}`);
+    return m;
+  };
+  const before = cellOf(published);
+  const after = cellOf(next);
+  return [...before].filter(([team, cell]) => after.get(team) !== cell).map(([team]) => team).sort();
+}
+
+/** "Team 02, 03, 04, 05" */
+export function teamList(teams: string[]): string {
+  return teams.map((t, i) => (i === 0 ? t : t.replace(/^Team /, ""))).join(", ");
+}
+
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 
 /** Judge time available before the end, divided by judge-minutes per team (panel size × slot length). */

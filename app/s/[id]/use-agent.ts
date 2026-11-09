@@ -42,8 +42,9 @@ export function useLoadDemo() {
     storage.set(
       "inbox",
       new LiveList([
-        { author: "Alex", text: "Judge C can't take the stairs today, keep him out of Room 4" },
-        { author: "Ji-won", text: "Room 2 projector is broken until 15:30" },
+        // Arrive together with Min's message: Alex's before it, Ji-won's after it.
+        { author: "Alex", text: "Judge C can't take the stairs today, keep him out of Room 4", with: "Min", position: "before" as const },
+        { author: "Ji-won", text: "Room 2 projector is broken until 15:30", with: "Min", position: "after" as const },
       ]),
     );
     storage.get("feed").push({ time: clockTime(), at: Date.now(), actor: self.presence.name, text: `${self.presence.name} loaded demo data` });
@@ -68,18 +69,25 @@ export function useRunAgent() {
     const comments = storage.get("comments");
     if (!comments.get(stepId)) comments.set(stepId, new LiveList([]));
     const id = `cm-${Date.now().toString(36)}`;
-    comments.get(stepId)!.push({ id, author: self.presence.name, text, redirected: redirect });
-    if (!redirect) return;
-    storage.get("steers").push(id);
-    // Messages that came in from the team chat follow in order, each with its own author.
+    if (!redirect) {
+      comments.get(stepId)!.push({ id, author: self.presence.name, text, redirected: false });
+      return;
+    }
+    // Chat messages that arrived with this person's message join it in order, each with its own author.
     const inbox = storage.get("inbox");
-    if (inbox) {
-      inbox.toJSON().forEach((m, k) => {
-        const mid = `${id}-${k + 1}`;
-        comments.get(stepId)!.push({ id: mid, author: m.author, text: m.text, redirected: true });
-        storage.get("steers").push(mid);
-      });
-      inbox.clear();
+    const mine = inbox ? inbox.toJSON().filter((m) => m.with === self.presence.name) : [];
+    const batch = [
+      ...mine.filter((m) => m.position === "before").map((m) => ({ author: m.author, text: m.text })),
+      { author: self.presence.name, text },
+      ...mine.filter((m) => m.position === "after").map((m) => ({ author: m.author, text: m.text })),
+    ];
+    batch.forEach((m, k) => {
+      const mid = k === 0 ? id : `${id}-${k}`;
+      comments.get(stepId)!.push({ id: mid, author: m.author, text: m.text, redirected: true });
+      storage.get("steers").push(mid);
+    });
+    if (inbox && mine.length) {
+      for (let i = inbox.length - 1; i >= 0; i--) if (inbox.get(i)!.with === self.presence.name) inbox.delete(i);
     }
     storage.set("steps", new LiveList(freshSteps()));
     storage.set("schedule", { ...storage.get("schedule"), locked: false });

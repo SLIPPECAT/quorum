@@ -34,6 +34,8 @@ export type Comment = {
   translation?: string;
   redirected: boolean;
   agentReply?: string;
+  applied?: boolean; // applied with no conflict and nobody asked
+  notified?: string; // "Update sent to N teams · HH:MM"
 };
 
 export type Setup = {
@@ -78,7 +80,7 @@ export type Decision = {
 export type FeedItem = { time: string; actor: string; text: string; at?: number };
 
 // Schedule as first sent to teams (after the first clean run).
-export type Published = { slots: Schedule["slots"]; time: string; teams: number };
+export type Published = { slots: Schedule["slots"]; time: string; teams: number; note?: string; notifiedTotal?: number };
 
 export type Presence = { name: string; color: string };
 
@@ -95,7 +97,7 @@ export type Storage = {
   rules: LiveList<WorkspaceRule>;
   published?: Published | null; // optional: absent in rule-map rooms
   // Demo: messages that arrived in the team chat, attached (in order) to the next redirect.
-  inbox?: LiveList<{ author: string; text: string }>;
+  inbox?: LiveList<{ author: string; text: string; with: string; position: "before" | "after" }>;
 };
 
 declare global {

@@ -11,7 +11,7 @@ import type {
   Storage,
 } from "@/liveblocks.config";
 import { options, solve, validate, type SolverInput, type SolverResult } from "@/lib/solver";
-import { joinNames, solverInputFrom } from "@/lib/agent/state";
+import { joinNames, movedTeams, solverInputFrom, teamList } from "@/lib/agent/state";
 import { explainResult, parseNote } from "@/lib/agent/llm";
 import { describeConstraint } from "@/lib/agent/describe";
 import {
@@ -39,7 +39,7 @@ type StorageJson = {
   schedule: Schedule;
   decision: Decision | null;
   feed: FeedItem[];
-  published?: { slots: Schedule["slots"]; time: string; teams: number } | null;
+  published?: { slots: Schedule["slots"]; time: string; teams: number; note?: string; notifiedTotal?: number } | null;
 };
 
 type Root = LiveObject<Storage>;
@@ -287,6 +287,27 @@ async function runValidate(s: StorageJson): Promise<StepOutcome> {
       summary: locked ? "0 conflicts · schedule locked" : "0 conflicts: every rule holds",
       feed: locked ? "Agent re-planned with 0 conflicts and locked the schedule" : "Agent drafted a schedule, 0 conflicts",
       apply: (root) => {
+        // A message that fit without bending anyone's rule: say so plainly, nobody was asked.
+        if (!locked && s.published) {
+          const moved = movedTeams(s.published.slots, result.slots);
+          const comments = root.get("comments") as LiveMap<string, LiveList<Comment>>;
+          comments.forEach((thread) => {
+            thread.forEach((c, i) => {
+              if (c.applied || !c.agentReply?.startsWith("Added constraint")) return;
+              thread.set(i, {
+                ...c,
+                applied: true,
+                agentReply: `Applied — no conflicts. ${moved.length ? `${moved.length} team${moved.length === 1 ? "" : "s"} move: ${teamList(moved)}.` : "No team moves."} No one's rule had to bend, so I didn't ask anyone.`,
+              });
+              (root.get("feed") as LiveList<FeedItem>).push({
+                time: now(),
+                actor: "Agent",
+                text: `Agent applied ${c.author}'s message with no conflicts; ${moved.length} teams move`,
+                at: Date.now(),
+              });
+            });
+          });
+        }
         root.set("schedule", { ...scheduleFrom(result, s.schedule), locked });
         // The first clean schedule counts as sent to the teams.
         if (!s.published) {

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useStorage } from "@liveblocks/react/suspense";
+import { useMutation, useSelf, useStorage } from "@liveblocks/react/suspense";
 import type { Step, StepName } from "@/liveblocks.config";
 import { Avatar, colorOf, usePeople } from "./people";
-import { useRunAgent } from "./use-agent";
+import { clockTime, useRunAgent } from "./use-agent";
+import { renotifyCount } from "@/lib/agent/state";
 
 const STEP_LABELS: Record<StepName, string> = {
   parse: "Parse constraints (LLM)",
@@ -20,6 +21,25 @@ export function AgentPanel() {
   const agent = useRunAgent();
   const [selected, setSelected] = useState(0);
   const [text, setText] = useState("");
+  const me = useSelf((s) => s.presence.name);
+  const published = useStorage((root) => root.published ?? null);
+  const slots = useStorage((root) => root.schedule.slots);
+  // The plan owner is whoever loaded the plan (Ji-won in the demo).
+  const owner = useStorage((root) => root.feed.find((f) => f.text.endsWith("loaded demo data"))?.actor ?? "");
+  const toNotify = renotifyCount(published?.slots, slots);
+  const notify = useMutation(({ storage, self }, stepId: string, commentId: string) => {
+    const pub = storage.get("published");
+    if (!pub) return;
+    const sched = storage.get("schedule");
+    const n = renotifyCount(pub.slots, sched.slots);
+    const note = `Update sent to ${n} team${n === 1 ? "" : "s"} · ${clockTime()}`;
+    // The sent schedule becomes the new baseline for later re-notify counts.
+    storage.set("published", { ...pub, slots: sched.slots, note, notifiedTotal: (pub.notifiedTotal ?? 0) + n });
+    const thread = storage.get("comments").get(stepId);
+    const i = thread ? thread.findIndex((c) => c.id === commentId) : -1;
+    if (thread && i >= 0) thread.set(i, { ...thread.get(i)!, notified: note });
+    storage.get("feed").push({ time: clockTime(), at: Date.now(), actor: self.presence.name, text: `${self.presence.name} sent the update to ${n} teams` });
+  }, []);
   // Temporary test control, only with ?debug (used by scripts/verify-sync.mjs). Client-only render.
   const showDebug = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug");
 
@@ -87,6 +107,20 @@ export function AgentPanel() {
                       <span className="font-medium">Agent</span> · {c.agentReply}
                     </p>
                   )}
+                  {c.applied &&
+                    (c.notified ? (
+                      <p data-testid="notified" className="ml-8 text-xs font-medium text-teal">{c.notified}</p>
+                    ) : (
+                      <button
+                        data-testid="notify"
+                        onClick={() => notify(step.id, c.id)}
+                        disabled={me !== owner}
+                        title={me === owner ? undefined : `Only ${owner}, the plan owner, can send updates`}
+                        className="ml-8 w-fit rounded-lg bg-ink px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Notify {toNotify} team{toNotify === 1 ? "" : "s"}
+                      </button>
+                    ))}
                 </div>
               ))}
             </li>
