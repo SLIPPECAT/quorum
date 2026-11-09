@@ -6,6 +6,8 @@ import { Avatar, usePeople, type Person } from "./people";
 import { AgentPanel } from "./agent-panel";
 import { ActivityPanel } from "./activity-panel";
 import { SchedulePanel } from "./schedule-panel";
+import { DecisionCard, WhyItConflicts } from "./decision-card";
+import { joinNames } from "@/lib/agent/state";
 import { useLoadDemo, useRunAgent } from "./use-agent";
 
 export function SessionView() {
@@ -24,8 +26,12 @@ export function SessionView() {
         <div className="w-full lg:w-[360px] lg:shrink-0">
           <AgentPanel />
         </div>
-        <SchedulePanel />
-        <div className="w-full lg:w-[320px] lg:shrink-0">
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <SchedulePanel />
+          <WhyItConflicts />
+        </div>
+        <div className="flex w-full flex-col gap-4 lg:w-[320px] lg:shrink-0">
+          <DecisionCard />
           <ActivityPanel />
         </div>
       </main>
@@ -39,6 +45,10 @@ function TopBar({ people }: { people: Person[] }) {
   const loadDemo = useLoadDemo();
   const agent = useRunAgent();
   const runningIndex = useStorage((root) => root.steps.findIndex((s) => s.status === "running"));
+  const asked = useStorage((root) =>
+    root.decision && !root.decision.chosen ? root.decision.askedAuthors.join("|") : "",
+  );
+  const locked = useStorage((root) => root.schedule.locked);
 
   const share = async () => {
     const url = new URL(window.location.href);
@@ -53,11 +63,19 @@ function TopBar({ people }: { people: Person[] }) {
       <span className="font-display text-xl font-semibold">Quorum</span>
       <span className="text-sm text-muted">c0mpiled-17 Seoul / Judging schedule</span>
       <div className="min-w-0" data-testid="status-badge">
-        {runningIndex >= 0 && (
+        {runningIndex >= 0 ? (
           <span className="rounded-full bg-blue/10 px-2.5 py-1 text-xs font-medium text-blue">
             Running step {runningIndex + 1}
           </span>
-        )}
+        ) : asked ? (
+          <span className="rounded-full border border-orange bg-warn-bg px-2.5 py-1 text-xs font-medium text-orange">
+            Decision needed · {joinNames(asked.split("|"))}
+          </span>
+        ) : locked ? (
+          <span className="rounded-full bg-teal/10 px-2.5 py-1 text-xs font-medium text-teal">
+            Locked · 0 conflicts
+          </span>
+        ) : null}
       </div>
       <div className="ml-auto flex items-center gap-3">
         <div className="flex -space-x-2" data-testid="avatars">
