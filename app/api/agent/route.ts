@@ -115,16 +115,57 @@ async function runParse(s: StorageJson, roomId: string): Promise<StepOutcome> {
     Promise.all(steered.map((c) => parseNote(c.text, s.setup))),
   ]);
 
-  // Each redirect that became a constraint is captured as a proposed workspace rule.
+  // Classify each steered message: a new constraint, one we already have, or a kind the solver can't plan around.
+  const sig = (c: Pick<Constraint, "kind" | "params">) =>
+    `${c.kind}:${JSON.stringify(Object.entries(c.params ?? {}).sort(([a], [b]) => a.localeCompare(b)))}`;
+  const known = s.constraints.filter((c) => c.kind && c.kind !== "unsupported");
+  const outcome = parsedSteers.map((parsed, k) => {
+    if (parsed.status === "unsupported") return "unsupported" as const;
+    const earlier = parsedSteers.slice(0, k).filter((p) => p.status === "active");
+    return known.some((c) => sig(c) === sig(parsed)) || earlier.some((p) => sig(p) === sig(parsed))
+      ? ("duplicate" as const)
+      : ("added" as const);
+  });
+  // For a duplicate, point at the rule map entry it matches (owner and month), if any.
+  const duplicateNote = new Map<string, string>();
+  if (outcome.includes("duplicate")) {
+    const wsRules = await readWorkspaceRules(liveblocks).catch(() => []);
+    steered.forEach((comment, k) => {
+      if (outcome[k] !== "duplicate") return;
+      const params = parsedSteers[k].params ?? {};
+      const tokens = Object.entries(params)
+        .filter(([, v]) => typeof v === "string")
+        .map(([key, v]) => (key === "judge" ? `Judge ${v}` : String(v)));
+      const rule = wsRules.find((r) => {
+        const hay = `${r.text} ${r.subjects.map((x) => x.name).join(" ")}`;
+        return r.status === "active" && tokens.every((t) => hay.includes(t));
+      });
+      const m = rule?.source.date.match(/^(\d{4})-(\d{2})/);
+      const month = m ? `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][Number(m[2]) - 1]} ${m[1]}` : "";
+      duplicateNote.set(
+        comment.id,
+        rule ? `Already in the rule map (${rule.owner}, ${month}) — no change.` : "Already a constraint — no change.",
+      );
+    });
+  }
+
+  // New constraints and unsupported messages are captured as proposed workspace rules; duplicates are not.
   const captured = new Set<string>();
   const toPropose = steered
-    .map((comment, k) => ({ comment, parsed: parsedSteers[k] }))
-    .filter(({ parsed }) => parsed.status === "active");
+    .map((comment, k) => ({ comment, parsed: parsedSteers[k], kind: outcome[k] }))
+    .filter(({ kind }) => kind !== "duplicate");
   if (toPropose.length) {
     try {
       await mutateWorkspaceRules(liveblocks, (rules) => {
         for (const { comment, parsed } of toPropose) {
           const fresh = proposedRule(comment, parsed, describeConstraint(parsed), `/s/${roomId}`);
+          if (parsed.status === "unsupported") {
+            // Not plannable: keep the person's words as a rule waiting for them, about the place it names.
+            const place = comment.text.match(/Room \d/i)?.[0];
+            fresh.text = parsed.translation ?? comment.text;
+            if (place) fresh.subjects = [{ type: "place", name: place.replace(/^room/i, "Room") }];
+            fresh.history = [{ date: fresh.history[0].date, actor: "Agent", text: `Captured from ${comment.author}'s message; the planner can't use this kind yet` }];
+          }
           if (rules.findIndex((r) => r.id === fresh.id) >= 0) {
             captured.add(comment.id);
             continue;
@@ -180,17 +221,23 @@ async function runParse(s: StorageJson, roomId: string): Promise<StepOutcome> {
       const comments = root.get("comments") as LiveMap<string, LiveList<Comment>>;
       steeredWith.forEach(({ stepId, comment }, k) => {
         const parsed = parsedSteers[k];
-        list.push({
-          id: `c-${comment.id}`,
-          author: comment.author,
-          sourceText: comment.text,
-          ...clean(parsed),
-        });
+        if (outcome[k] !== "duplicate") {
+          list.push({
+            id: `c-${comment.id}`,
+            author: comment.author,
+            sourceText: comment.text,
+            ...clean(parsed),
+          });
+        }
         // Agent reply under the comment that redirected it.
         const stepNo = STEPS.findIndex((n) => `step-${n}` === stepId) + 1 || 1;
         const reply =
-          parsed.status === "unsupported"
-            ? "Couldn't turn this into a rule the solver supports. Kept it as a note."
+          outcome[k] === "duplicate"
+            ? duplicateNote.get(comment.id) ?? "Already a constraint — no change."
+            : parsed.status === "unsupported"
+            ? captured.has(comment.id)
+              ? `I can't plan around this yet — saved as a proposed rule for ${comment.author}.`
+              : "I can't plan around this yet. Kept it as a note."
             : `Added constraint: ${describeConstraint(parsed)}. Re-planning from step ${stepNo}.` +
               (captured.has(comment.id)
                 ? ` Saved as a proposed rule${typeof parsed.params?.judge === "string" ? ` for Judge ${parsed.params.judge}` : ""}. Today only, or always?`

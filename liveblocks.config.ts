@@ -94,6 +94,8 @@ export type Storage = {
   // Workspace rule map (room `ws-<id>`); an empty list in session rooms.
   rules: LiveList<WorkspaceRule>;
   published?: Published | null; // optional: absent in rule-map rooms
+  // Demo: messages that arrived in the team chat, attached (in order) to the next redirect.
+  inbox?: LiveList<{ author: string; text: string }>;
 };
 
 declare global {

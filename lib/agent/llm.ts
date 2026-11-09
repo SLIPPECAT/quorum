@@ -98,7 +98,7 @@ export async function explainResult(facts: string): Promise<string> {
     max_tokens: 400,
     system:
       "You explain a judging schedule result to the organizers in at most two short sentences (under 45 words total) of plain English. " +
-      "Name the people (authors) whose rules matter. Do not invent facts; use only what is given. No markdown.",
+      "Name the people (authors) whose rules matter, by name only (no pronouns for people). Do not invent facts; use only what is given. No markdown.",
     messages: [{ role: "user", content: facts }],
     output_config: { effort: "low" },
   });

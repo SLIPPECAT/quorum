@@ -39,6 +39,13 @@ export function useLoadDemo() {
     storage.set("schedule", emptySchedule());
     storage.set("decision", null);
     storage.set("published", null);
+    storage.set(
+      "inbox",
+      new LiveList([
+        { author: "Alex", text: "Judge C can't take the stairs today, keep him out of Room 4" },
+        { author: "Ji-won", text: "Room 2 projector is broken until 15:30" },
+      ]),
+    );
     storage.get("feed").push({ time: clockTime(), at: Date.now(), actor: self.presence.name, text: `${self.presence.name} loaded demo data` });
   }, []);
 }
@@ -64,6 +71,16 @@ export function useRunAgent() {
     comments.get(stepId)!.push({ id, author: self.presence.name, text, redirected: redirect });
     if (!redirect) return;
     storage.get("steers").push(id);
+    // Messages that came in from the team chat follow in order, each with its own author.
+    const inbox = storage.get("inbox");
+    if (inbox) {
+      inbox.toJSON().forEach((m, k) => {
+        const mid = `${id}-${k + 1}`;
+        comments.get(stepId)!.push({ id: mid, author: m.author, text: m.text, redirected: true });
+        storage.get("steers").push(mid);
+      });
+      inbox.clear();
+    }
     storage.set("steps", new LiveList(freshSteps()));
     storage.set("schedule", { ...storage.get("schedule"), locked: false });
     storage.get("feed").push({
