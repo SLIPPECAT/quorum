@@ -20,6 +20,8 @@ export function AgentPanel() {
   const agent = useRunAgent();
   const [selected, setSelected] = useState(0);
   const [text, setText] = useState("");
+  // Temporary test control, only with ?debug (used by scripts/verify-sync.mjs). Client-only render.
+  const showDebug = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug");
 
   // Temporary: lets the sync check add a step from one window and see it in another.
   const addTestStep = useMutation(({ storage }) => {
@@ -123,12 +125,14 @@ export function AgentPanel() {
         </div>
       )}
 
+      {showDebug && (
       <button
         onClick={addTestStep}
         className="mt-5 rounded-lg border border-dashed border-line px-3 py-1.5 text-xs text-muted hover:bg-page"
       >
         Add test step
       </button>
+      )}
     </section>
   );
 }

@@ -63,17 +63,17 @@ function TopBar({ people }: { people: Person[] }) {
       <span className="font-display text-xl font-semibold">Quorum</span>
       <span className="text-sm text-muted">c0mpiled-17 Seoul / Judging schedule</span>
       <div className="min-w-0" data-testid="status-badge">
-        {runningIndex >= 0 ? (
+        {locked ? (
+          <span className="rounded-full bg-teal/10 px-2.5 py-1 text-xs font-medium text-teal">
+            Locked · 0 conflicts
+          </span>
+        ) : runningIndex >= 0 ? (
           <span className="rounded-full bg-blue/10 px-2.5 py-1 text-xs font-medium text-blue">
             Running step {runningIndex + 1}
           </span>
         ) : asked ? (
           <span className="rounded-full border border-orange bg-warn-bg px-2.5 py-1 text-xs font-medium text-orange">
             Decision needed · {joinNames(asked.split("|"))}
-          </span>
-        ) : locked ? (
-          <span className="rounded-full bg-teal/10 px-2.5 py-1 text-xs font-medium text-teal">
-            Locked · 0 conflicts
           </span>
         ) : null}
       </div>

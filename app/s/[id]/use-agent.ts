@@ -51,6 +51,7 @@ export function useRunAgent() {
 
   const start = useMutation(({ storage, self }) => {
     storage.set("steps", new LiveList(freshSteps()));
+    storage.set("schedule", { ...storage.get("schedule"), locked: false });
     storage.get("feed").push({ time: clockTime(), actor: self.presence.name, text: `${self.presence.name} started the run` });
   }, []);
 
@@ -63,6 +64,7 @@ export function useRunAgent() {
     if (!redirect) return;
     storage.get("steers").push(id);
     storage.set("steps", new LiveList(freshSteps()));
+    storage.set("schedule", { ...storage.get("schedule"), locked: false });
     storage.get("feed").push({
       time: clockTime(),
       actor: self.presence.name,
@@ -103,13 +105,15 @@ export function useRunAgent() {
       for (let i = 0; i < 40 && room.getStorageStatus() !== "synchronized"; i++) {
         await new Promise((r) => setTimeout(r, 50));
       }
-      for (const step of STEP_NAMES.slice(from)) {
-        const res = await fetch("/api/agent", {
+      const call = (step: StepName) =>
+        fetch("/api/agent", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ roomId: room.id, step }),
-        });
-        if (!res.ok) break;
+        }).then((r) => r.ok, () => false);
+      for (const step of STEP_NAMES.slice(from)) {
+        // One automatic retry when a step (usually an LLM call) fails.
+        if (!(await call(step)) && !(await call(step))) break;
       }
     } finally {
       setBusy(false);

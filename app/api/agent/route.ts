@@ -283,19 +283,32 @@ async function runExplain(s: StorageJson): Promise<StepOutcome> {
   const input = solverInput(s);
   const result = solve(input);
   const rules = s.constraints
-    .map((c) => `- ${c.author}: "${c.translation ?? c.sourceText}" (${c.kind ?? "unparsed"}, ${c.status})`)
+    .map(
+      (c) =>
+        `- ${c.author}: "${c.translation ?? c.sourceText}" (${c.kind ?? "unparsed"} ${JSON.stringify(c.params ?? {})}, ${c.status})`,
+    )
     .join("\n");
+  // The end time people agreed on (an end_by rule may have been moved by a decision).
+  const effectiveEnd =
+    s.constraints.find((c) => c.kind === "end_by" && c.status === "active" && typeof c.params?.time === "string")
+      ?.params?.time ?? s.setup.timing.end;
   const conflicting = s.constraints
     .filter((c) => result.conflictingConstraintIds.includes(c.id))
     .map((c) => `${c.author}: "${c.translation ?? c.sourceText}"`)
     .join("; ");
+  const chosen = s.decision?.chosen ? s.decision.options.find((o) => o.id === s.decision!.chosen) : undefined;
   const facts = [
     `Rules:\n${rules}`,
-    `Placed ${s.setup.teams.length - result.unplaced.length} of ${s.setup.teams.length} teams, ${s.setup.rooms.length} rooms, ${s.setup.timing.start}–${s.setup.timing.end}, ${s.setup.timing.slotMinutes}-minute slots.`,
+    `Placed ${s.setup.teams.length - result.unplaced.length} of ${s.setup.teams.length} teams, ${s.setup.rooms.length} rooms, ${s.setup.timing.start}–${effectiveEnd}, ${s.setup.timing.slotMinutes}-minute slots.`,
     result.unplaced.length
       ? `Unplaced: ${result.unplaced.join(", ")}. Rules that collide: ${conflicting}.`
-      : "Every rule holds, 0 conflicts.",
-  ].join("\n");
+      : "Every rule holds as currently set (params above), 0 conflicts.",
+    chosen
+      ? `Agreed by the rule's owner: ${s.decision!.chosenBy ?? "the owner"} chose ${chosen.id}: ${chosen.summary}. This is an agreed change, not a violation.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
   const text = await explainResult(facts);
   return { status: "done", summary: text, feed: "Agent explained the plan" };
 }

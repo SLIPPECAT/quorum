@@ -141,7 +141,11 @@ export function SchedulePanel() {
                           data-testid={team ? "placed" : "empty"}
                           data-changed={isChanged || undefined}
                           className={`rounded-lg border px-2 py-1.5 ${
-                            team ? "border-line bg-white" : "border-orange bg-warn-bg text-orange"
+                            team
+                              ? "border-line bg-white"
+                              : unplaced.length
+                                ? "border-orange bg-warn-bg text-orange"
+                                : "border-dashed border-line bg-page text-muted"
                           }`}
                           style={isChanged ? { borderColor: changeColor, background: `${changeColor}1A` } : undefined}
                         >

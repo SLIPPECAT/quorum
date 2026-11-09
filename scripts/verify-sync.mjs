@@ -26,7 +26,7 @@ try {
   const b = await (await browserB.newContext()).newPage();
   // Join in order like the demo (Ji-won opens the session, then shares the link).
   // Two clients creating a brand-new room at the same instant can race on initial storage.
-  await a.goto(`${BASE}/s/${session}?name=Ji-won`);
+  await a.goto(`${BASE}/s/${session}?name=Ji-won&debug`);
   await a.locator('[data-testid="avatars"] [data-name="Ji-won"]').waitFor({ timeout: TIMEOUT });
   await b.goto(`${BASE}/s/${session}?name=Min`);
 
