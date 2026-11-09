@@ -1,26 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useOthers, useSelf, useStorage, useUpdateMyPresence } from "@liveblocks/react/suspense";
-import { PRESENCE_COLORS } from "@/liveblocks.config";
+import { useStorage, useUpdateMyPresence } from "@liveblocks/react/suspense";
+import { Avatar, usePeople, type Person } from "./people";
 import { AgentPanel } from "./agent-panel";
 import { ActivityPanel } from "./activity-panel";
 import { SchedulePanel } from "./schedule-panel";
 import { useLoadDemo, useRunAgent } from "./use-agent";
-
-export type Person = { connectionId: number; name: string; color: string; isSelf: boolean };
-
-/** Everyone in the room, in join order, with a presence color assigned by that order. */
-export function usePeople(): Person[] {
-  const self = useSelf((me) => ({ connectionId: me.connectionId, name: me.presence.name }));
-  const others = useOthers((list) =>
-    list.map((o) => ({ connectionId: o.connectionId, name: o.presence.name })),
-  );
-  return [{ ...self, isSelf: true }, ...others.map((o) => ({ ...o, isSelf: false }))]
-    .filter((p) => p.name)
-    .sort((a, b) => a.connectionId - b.connectionId)
-    .map((p, i) => ({ ...p, color: PRESENCE_COLORS[i % PRESENCE_COLORS.length] }));
-}
 
 export function SessionView() {
   const people = usePeople();
@@ -117,18 +103,5 @@ function TopBar({ people }: { people: Person[] }) {
         </div>
       </div>
     </header>
-  );
-}
-
-export function Avatar({ name, color }: { name: string; color: string }) {
-  return (
-    <span
-      title={name}
-      data-name={name}
-      className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white text-xs font-semibold text-white"
-      style={{ background: color || "#6b6b66" }}
-    >
-      {name.slice(0, 1).toUpperCase()}
-    </span>
   );
 }

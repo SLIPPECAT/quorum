@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useStorage } from "@liveblocks/react/suspense";
 import { toHHMM, toMinutes } from "@/lib/solver";
+import { colorOf, usePeople } from "./people";
 
 const FOLD_AFTER = 4;
 
@@ -15,6 +16,15 @@ export function SchedulePanel() {
   const setup = useStorage((root) => root.setup);
   const schedule = useStorage((root) => root.schedule);
   const [expanded, setExpanded] = useState(false);
+  const people = usePeople();
+  // Changed cells take the color of whoever redirected the agent last.
+  const redirector = useStorage((root) => {
+    const all = Object.values(root.comments).flat().filter((c) => c.redirected);
+    all.sort((a, b) => a.id.localeCompare(b.id));
+    return all.at(-1)?.author ?? null;
+  });
+  const changeColor = redirector ? colorOf(people, redirector) : "#C2410C";
+  const changed = new Set(schedule.changedCells);
 
   const rooms = setup.rooms;
   const times = Object.keys(schedule.slots[rooms[0]] ?? {}).sort();
@@ -123,17 +133,22 @@ export function SchedulePanel() {
                     <td className="text-xs tabular-nums text-muted">
                       {row.start}–{row.end}
                     </td>
-                    {row.teams.map((team, i) => (
-                      <td
-                        key={i}
-                        data-testid={team ? "placed" : "empty"}
-                        className={`rounded-lg border px-2 py-1.5 ${
-                          team ? "border-line bg-white" : "border-orange bg-warn-bg text-orange"
-                        }`}
-                      >
-                        {team ?? "—"}
-                      </td>
-                    ))}
+                    {row.teams.map((team, i) => {
+                      const isChanged = team !== null && changed.has(`${rooms[i]}|${row.start}`);
+                      return (
+                        <td
+                          key={i}
+                          data-testid={team ? "placed" : "empty"}
+                          data-changed={isChanged || undefined}
+                          className={`rounded-lg border px-2 py-1.5 ${
+                            team ? "border-line bg-white" : "border-orange bg-warn-bg text-orange"
+                          }`}
+                          style={isChanged ? { borderColor: changeColor, background: `${changeColor}1A` } : undefined}
+                        >
+                          {team ?? "—"}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}

@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useStorage } from "@liveblocks/react/suspense";
 import type { Step, StepName } from "@/liveblocks.config";
+import { Avatar, colorOf, usePeople } from "./people";
+import { useRunAgent } from "./use-agent";
 
 const STEP_LABELS: Record<StepName, string> = {
   parse: "Parse constraints (LLM)",
@@ -12,6 +15,11 @@ const STEP_LABELS: Record<StepName, string> = {
 
 export function AgentPanel() {
   const steps = useStorage((root) => root.steps);
+  const comments = useStorage((root) => root.comments);
+  const people = usePeople();
+  const agent = useRunAgent();
+  const [selected, setSelected] = useState(0);
+  const [text, setText] = useState("");
 
   // Temporary: lets the sync check add a step from one window and see it in another.
   const addTestStep = useMutation(({ storage }) => {
@@ -24,26 +32,97 @@ export function AgentPanel() {
     });
   }, []);
 
+  const target = steps[Math.min(selected, steps.length - 1)];
+  const submit = async (redirect: boolean) => {
+    const value = text.trim();
+    if (!value || !target) return;
+    setText("");
+    await agent.comment(target.id, Math.min(selected, steps.length - 1) + 1, value, redirect);
+  };
+
   return (
     <section className="card p-5">
       <h2 className="font-display text-lg font-semibold">Agent run</h2>
       {steps.length === 0 ? (
         <p className="mt-4 text-sm text-muted">No run yet.</p>
       ) : (
-        <ol className="mt-4 flex flex-col gap-3" data-testid="steps">
+        <ol className="mt-4 flex flex-col gap-1" data-testid="steps">
           {steps.map((step, i) => (
-            <li key={step.id} data-testid="step" className="flex gap-3">
-              <StatusIcon status={step.status} />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">
-                  {i + 1} · {STEP_LABELS[step.name]}
-                </p>
-                {step.summary && <p className="mt-0.5 text-sm text-muted">{step.summary}</p>}
-              </div>
+            <li key={step.id} data-testid="step">
+              <button
+                onClick={() => setSelected(i)}
+                className={`flex w-full gap-3 rounded-lg p-2 text-left ${
+                  i === selected ? "bg-page ring-1 ring-line" : "hover:bg-page"
+                }`}
+              >
+                <StatusIcon status={step.status} />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">
+                    {i + 1} · {STEP_LABELS[step.name]}
+                  </p>
+                  {step.summary && <p className="mt-0.5 text-sm text-muted">{step.summary}</p>}
+                </div>
+              </button>
+              {(comments[step.id] ?? []).map((c) => (
+                <div key={c.id} data-testid="comment" className="ml-10 mt-1 mb-2 flex flex-col gap-1.5">
+                  <div className="flex gap-2">
+                    <Avatar name={c.author} color={colorOf(people, c.author)} size="sm" />
+                    <div className="min-w-0 text-sm">
+                      <p>
+                        <span className="font-medium">{c.author}</span>{" "}
+                        {c.redirected && <span className="text-xs text-muted">· redirected</span>}
+                      </p>
+                      <p>{c.text}</p>
+                      {c.translation && (
+                        <p className="text-xs text-muted" data-testid="translation">
+                          Translated · {c.translation}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {c.agentReply && (
+                    <p data-testid="agent-reply" className="ml-8 rounded-lg bg-page px-2.5 py-1.5 text-xs">
+                      <span className="font-medium">Agent</span> · {c.agentReply}
+                    </p>
+                  )}
+                </div>
+              ))}
             </li>
           ))}
         </ol>
       )}
+
+      {steps.length > 0 && (
+        <div className="mt-4 border-t border-line pt-4">
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
+            Comment on step {Math.min(selected, steps.length - 1) + 1}
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              rows={2}
+              placeholder="Add a constraint the agent doesn't know…"
+              className="resize-none rounded-lg border border-line px-3 py-2 font-normal outline-none focus:border-blue"
+            />
+          </label>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => submit(false)}
+              disabled={!text.trim()}
+              className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:bg-page disabled:opacity-40"
+            >
+              Comment
+            </button>
+            <button
+              onClick={() => submit(true)}
+              disabled={!text.trim() || agent.disabled}
+              className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+            >
+              Comment &amp; redirect
+            </button>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={addTestStep}
         className="mt-5 rounded-lg border border-dashed border-line px-3 py-1.5 text-xs text-muted hover:bg-page"

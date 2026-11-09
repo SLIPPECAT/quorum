@@ -1,8 +1,9 @@
 import { Liveblocks } from "@liveblocks/node";
-import type { LiveList, LiveObject } from "@liveblocks/client";
+import type { LiveList, LiveMap, LiveObject } from "@liveblocks/client";
 import type { Comment, Constraint, FeedItem, Schedule, Step, StepName, Storage } from "@/liveblocks.config";
 import { solve, validate, type SolverInput, type SolverResult } from "@/lib/solver";
 import { explainResult, parseNote } from "@/lib/agent/llm";
+import { describeConstraint } from "@/lib/agent/describe";
 
 export const maxDuration = 60;
 
@@ -58,8 +59,26 @@ function solverInput(s: StorageJson): SolverInput {
   };
 }
 
+function joinNames(names: string[]) {
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
+}
+
 function authorsOf(s: StorageJson, ids: string[]) {
   return [...new Set(ids.map((id) => s.constraints.find((c) => c.id === id)?.author).filter(Boolean))] as string[];
+}
+
+/** Cells ("Room|HH:MM") whose team differs from the previous schedule. Empty when there was none. */
+function changedCells(result: SolverResult, prev: Schedule): string[] {
+  const hadSchedule = Object.values(prev.slots ?? {}).some((room) => Object.keys(room).length > 0);
+  if (!hadSchedule) return [];
+  const out: string[] = [];
+  for (const [room, slots] of Object.entries(result.slots)) {
+    const times = new Set([...Object.keys(slots), ...Object.keys(prev.slots[room] ?? {})]);
+    for (const t of times) {
+      if ((slots[t] ?? null) !== (prev.slots[room]?.[t] ?? null)) out.push(`${room}|${t}`);
+    }
+  }
+  return out;
 }
 
 function scheduleFrom(result: SolverResult, prev: Schedule): Schedule {
@@ -74,10 +93,14 @@ function scheduleFrom(result: SolverResult, prev: Schedule): Schedule {
 
 async function runParse(s: StorageJson): Promise<StepOutcome> {
   const notes = s.constraints.filter((c) => c.status === "active" && !c.kind);
-  const allComments = Object.values(s.comments ?? {}).flat();
-  const steered = s.steers
-    .map((id) => allComments.find((c) => c.id === id))
-    .filter((c): c is Comment => !!c);
+  // Steered comments, with the step they were left on.
+  const threads = Object.entries(s.comments ?? {}).flatMap(([stepId, list]) =>
+    list.map((comment) => ({ stepId, comment })),
+  );
+  const steeredWith = s.steers
+    .map((id) => threads.find((t) => t.comment.id === id))
+    .filter((t): t is { stepId: string; comment: Comment } => !!t);
+  const steered = steeredWith.map((t) => t.comment);
 
   const [parsedNotes, parsedSteers] = await Promise.all([
     Promise.all(notes.map((n) => parseNote(n.sourceText, s.setup))),
@@ -102,13 +125,26 @@ async function runParse(s: StorageJson): Promise<StepOutcome> {
         // Author stays from the note's metadata, never from the model.
         if (i >= 0) list.set(i, { ...list.get(i)!, ...clean(parsedNotes[k]) });
       });
-      steered.forEach((comment, k) => {
+      const comments = root.get("comments") as LiveMap<string, LiveList<Comment>>;
+      steeredWith.forEach(({ stepId, comment }, k) => {
+        const parsed = parsedSteers[k];
         list.push({
           id: `c-${comment.id}`,
           author: comment.author,
           sourceText: comment.text,
-          ...clean(parsedSteers[k]),
+          ...clean(parsed),
         });
+        // Agent reply under the comment that redirected it.
+        const stepNo = STEPS.findIndex((n) => `step-${n}` === stepId) + 1 || 1;
+        const reply =
+          parsed.status === "unsupported"
+            ? "Couldn't turn this into a rule the solver supports. Kept it as a note."
+            : `Added constraint: ${describeConstraint(parsed)}. Re-planning from step ${stepNo}.`;
+        const thread = comments.get(stepId);
+        const i = thread ? thread.findIndex((c) => c.id === comment.id) : -1;
+        if (thread && i >= 0) {
+          thread.set(i, clean({ ...thread.get(i)!, translation: parsed.translation, agentReply: reply }));
+        }
       });
       const steers = root.get("steers") as LiveList<string>;
       for (let i = steers.length - 1; i >= 0; i--) {
@@ -130,7 +166,8 @@ function runDraft(s: StorageJson): StepOutcome {
     status: "done",
     summary: `Placed ${placed} of ${s.setup.teams.length} teams across ${s.setup.rooms.length} rooms`,
     feed: `Agent placed ${placed} of ${s.setup.teams.length} teams`,
-    apply: (root) => root.set("schedule", scheduleFrom(result, s.schedule)),
+    apply: (root) =>
+      root.set("schedule", { ...scheduleFrom(result, s.schedule), changedCells: changedCells(result, s.schedule) }),
   };
 }
 
@@ -144,7 +181,7 @@ function runValidate(s: StorageJson): StepOutcome {
     status: ok ? "done" : "conflict",
     summary: ok
       ? "0 conflicts: every rule holds"
-      : `${result.unplaced.length} teams unplaced · conflicting rules from ${authors.join(" and ")}`,
+      : `${result.unplaced.length} teams unplaced · conflicting rules from ${joinNames(authors)}`,
     feed: ok
       ? "Agent drafted a schedule, 0 conflicts"
       : `Agent found a conflict: ${result.unplaced.length} teams don't fit`,

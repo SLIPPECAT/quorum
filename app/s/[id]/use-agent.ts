@@ -52,9 +52,24 @@ export function useRunAgent() {
     storage.get("feed").push({ time: clockTime(), actor: self.presence.name, text: `${self.presence.name} started the run` });
   }, []);
 
-  const run = async () => {
+  /** Add a comment on a step. With redirect, queue it for parsing and re-plan from parse. */
+  const addComment = useMutation(({ storage, self }, stepId: string, stepNo: number, text: string, redirect: boolean) => {
+    const comments = storage.get("comments");
+    if (!comments.get(stepId)) comments.set(stepId, new LiveList([]));
+    const id = `cm-${Date.now().toString(36)}`;
+    comments.get(stepId)!.push({ id, author: self.presence.name, text, redirected: redirect });
+    if (!redirect) return;
+    storage.get("steers").push(id);
+    storage.set("steps", new LiveList(freshSteps()));
+    storage.get("feed").push({
+      time: clockTime(),
+      actor: self.presence.name,
+      text: `${self.presence.name} redirected the agent from step ${stepNo}`,
+    });
+  }, []);
+
+  const runSteps = async () => {
     setBusy(true);
-    start();
     try {
       // Make sure the reset reached the server before the API starts writing steps.
       for (let i = 0; i < 40 && room.getStorageStatus() !== "synchronized"; i++) {
@@ -73,5 +88,16 @@ export function useRunAgent() {
     }
   };
 
-  return { run, disabled: busy || anyRunning || !hasSetup };
+  const run = async () => {
+    start();
+    await runSteps();
+  };
+
+  const comment = async (stepId: string, stepNo: number, text: string, redirect: boolean) => {
+    addComment(stepId, stepNo, text, redirect);
+    if (redirect) await runSteps();
+  };
+
+  const disabled = busy || anyRunning || !hasSetup;
+  return { run, comment, disabled };
 }
