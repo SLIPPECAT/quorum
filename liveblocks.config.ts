@@ -1,4 +1,5 @@
 import type { LiveList, LiveMap } from "@liveblocks/client";
+import type { WorkspaceRule } from "@/lib/rules/types";
 
 export type ConstraintKind =
   | "panel_min_size"
@@ -81,6 +82,8 @@ export type Storage = {
   schedule: Schedule;
   decision: Decision | null;
   feed: LiveList<FeedItem>;
+  // Workspace rule map (room `ws-<id>`); an empty list in session rooms.
+  rules: LiveList<WorkspaceRule>;
 };
 
 declare global {

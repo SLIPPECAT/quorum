@@ -27,6 +27,7 @@ export function SessionRoom({ roomId, name }: { roomId: string; name: string }) 
           schedule: emptySchedule(),
           decision: null,
           feed: new LiveList([]),
+          rules: new LiveList([]),
         })}
       >
         <ClientSideSuspense
