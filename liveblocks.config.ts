@@ -67,6 +67,11 @@ export type Decision = {
   askedAuthors: string[];
   options: DecisionOption[];
   chosen: string | null;
+  chosenBy?: string;
+  // Past compromise on the same rule, from the workspace rule map.
+  recall?: string;
+  // After locking: was the choice saved as a workspace rule?
+  ruleStatus?: "saved" | "dismissed";
 };
 
 export type FeedItem = { time: string; actor: string; text: string };

@@ -14,6 +14,13 @@ import { options, solve, validate, type SolverInput, type SolverResult } from "@
 import { joinNames, solverInputFrom } from "@/lib/agent/state";
 import { explainResult, parseNote } from "@/lib/agent/llm";
 import { describeConstraint } from "@/lib/agent/describe";
+import {
+  mutateWorkspaceRules,
+  proposedRule,
+  readWorkspaceRules,
+  recallFor,
+  ruleFromChoice,
+} from "@/lib/agent/workspace";
 
 export const maxDuration = 60;
 
@@ -91,7 +98,7 @@ function scheduleFrom(result: SolverResult, prev: Schedule): Schedule {
   };
 }
 
-async function runParse(s: StorageJson): Promise<StepOutcome> {
+async function runParse(s: StorageJson, roomId: string): Promise<StepOutcome> {
   const notes = s.constraints.filter((c) => c.status === "active" && !c.kind);
   // Steered comments, with the step they were left on.
   const threads = Object.entries(s.comments ?? {}).flatMap(([stepId, list]) =>
@@ -106,6 +113,50 @@ async function runParse(s: StorageJson): Promise<StepOutcome> {
     Promise.all(notes.map((n) => parseNote(n.sourceText, s.setup))),
     Promise.all(steered.map((c) => parseNote(c.text, s.setup))),
   ]);
+
+  // Each redirect that became a constraint is captured as a proposed workspace rule.
+  const captured = new Set<string>();
+  const toPropose = steered
+    .map((comment, k) => ({ comment, parsed: parsedSteers[k] }))
+    .filter(({ parsed }) => parsed.status === "active");
+  if (toPropose.length) {
+    try {
+      await mutateWorkspaceRules(liveblocks, (rules) => {
+        for (const { comment, parsed } of toPropose) {
+          const fresh = proposedRule(comment, parsed, describeConstraint(parsed), `/s/${roomId}`);
+          if (rules.findIndex((r) => r.id === fresh.id) >= 0) {
+            captured.add(comment.id);
+            continue;
+          }
+          // Same person already has a proposed rule waiting: update it instead of adding a duplicate.
+          const person = fresh.subjects.find((x) => x.type === "person")?.name;
+          const i = person
+            ? rules.findIndex(
+                (r) => r.status === "proposed" && r.subjects.some((x) => x.type === "person" && x.name === person),
+              )
+            : -1;
+          if (i >= 0) {
+            const { demo: _demo, ...existing } = rules.get(i)!;
+            void _demo;
+            rules.set(i, {
+              ...existing,
+              text: fresh.text,
+              owner: fresh.owner,
+              scope: fresh.scope,
+              source: fresh.source,
+              usedBy: fresh.usedBy,
+              history: [...existing.history, ...fresh.history],
+            });
+          } else {
+            rules.push(fresh);
+          }
+          captured.add(comment.id);
+        }
+      });
+    } catch (err) {
+      console.error("could not save proposed rule", err);
+    }
+  }
 
   const total = notes.length + steered.length;
   const unsupported = [...parsedNotes, ...parsedSteers].filter((p) => p.status === "unsupported").length;
@@ -139,7 +190,10 @@ async function runParse(s: StorageJson): Promise<StepOutcome> {
         const reply =
           parsed.status === "unsupported"
             ? "Couldn't turn this into a rule the solver supports. Kept it as a note."
-            : `Added constraint: ${describeConstraint(parsed)}. Re-planning from step ${stepNo}.`;
+            : `Added constraint: ${describeConstraint(parsed)}. Re-planning from step ${stepNo}.` +
+              (captured.has(comment.id)
+                ? ` Saved as a proposed rule${typeof parsed.params?.judge === "string" ? ` for Judge ${parsed.params.judge}` : ""}. Today only, or always?`
+                : "");
         const thread = comments.get(stepId);
         const i = thread ? thread.findIndex((c) => c.id === comment.id) : -1;
         if (thread && i >= 0) {
@@ -171,7 +225,7 @@ function runDraft(s: StorageJson): StepOutcome {
   };
 }
 
-function runValidate(s: StorageJson): StepOutcome {
+async function runValidate(s: StorageJson): Promise<StepOutcome> {
   const input = solverInput(s);
   const result = solve(input);
   const violations = validate(input, result);
@@ -195,11 +249,24 @@ function runValidate(s: StorageJson): StepOutcome {
   const opts = options(input, result);
   const owners = [...new Set(opts.map((o) => o.author))];
   const askedAuthors = owners.length ? owners : authorsOf(s, result.conflictingConstraintIds);
+  // Remind people of the last time the same rule was bent (workspace memory).
+  let recall: string | undefined;
+  try {
+    const rules = await readWorkspaceRules(liveblocks);
+    for (const o of opts) {
+      const c = s.constraints.find((x) => x.id === o.relaxesConstraintId);
+      recall = c ? recallFor(rules, c) : undefined;
+      if (recall) break;
+    }
+  } catch (err) {
+    console.error("could not read workspace rules", err);
+  }
   const decision: Decision = {
     conflictingConstraintIds: result.conflictingConstraintIds,
     askedAuthors,
     options: opts.map((o) => ({ ...o, change: { ...o.change } })),
     chosen: null,
+    ...(recall ? { recall } : {}),
   };
   return {
     status: "conflict",
@@ -233,8 +300,45 @@ async function runExplain(s: StorageJson): Promise<StepOutcome> {
   return { status: "done", summary: text, feed: "Agent explained the plan" };
 }
 
+/** Save the chosen option as a workspace rule for all events. Only the person who chose may save. */
+async function saveRule(roomId: string, by: string) {
+  const storage = (await liveblocks.getStorageDocument(roomId, "json")) as unknown as StorageJson;
+  const d = storage.decision;
+  const option = d?.options.find((o) => o.id === d.chosen);
+  if (!d || !option || !storage.schedule.locked || d.ruleStatus) {
+    return Response.json({ error: "nothing to save" }, { status: 409 });
+  }
+  if (!by || by !== d.chosenBy) {
+    return Response.json({ error: "only the person who chose can save" }, { status: 403 });
+  }
+  const rule = ruleFromChoice(option as Parameters<typeof ruleFromChoice>[0], by, `/s/${roomId}`);
+  await mutateWorkspaceRules(liveblocks, (rules) => rules.push(rule));
+  await liveblocks.mutateStorage(roomId, ({ root }) => {
+    const r = root as unknown as Root;
+    const current = r.get("decision");
+    if (current) r.set("decision", { ...current, ruleStatus: "saved" });
+    (r.get("feed") as LiveList<FeedItem>).push({
+      time: now(),
+      actor: "Agent",
+      text: `Agent saved ${by}'s choice as a rule for all events`,
+    });
+  });
+  return Response.json({ ok: true, ruleId: rule.id });
+}
+
 export async function POST(req: Request) {
-  const { roomId, step } = (await req.json()) as { roomId: string; step: StepName };
+  const body = (await req.json()) as { roomId: string; step?: StepName; action?: string; by?: string };
+  const { roomId } = body;
+  if (body.action === "saveRule") {
+    if (!roomId) return Response.json({ error: "roomId is required" }, { status: 400 });
+    try {
+      return await saveRule(roomId, body.by ?? "");
+    } catch (err) {
+      console.error("saveRule failed", err);
+      return Response.json({ error: "save failed" }, { status: 500 });
+    }
+  }
+  const step = body.step as StepName;
   if (!roomId || !STEPS.includes(step)) {
     return Response.json({ error: "roomId and a valid step are required" }, { status: 400 });
   }
@@ -250,11 +354,11 @@ export async function POST(req: Request) {
     const storage = (await liveblocks.getStorageDocument(roomId, "json")) as unknown as StorageJson;
     const outcome =
       step === "parse"
-        ? await runParse(storage)
+        ? await runParse(storage, roomId)
         : step === "draft"
           ? runDraft(storage)
           : step === "validate"
-            ? runValidate(storage)
+            ? await runValidate(storage)
             : await runExplain(storage);
 
     await liveblocks.mutateStorage(roomId, ({ root }) => {

@@ -83,7 +83,7 @@ export function useRunAgent() {
       if (i >= 0) list.set(i, { ...list.get(i)!, params });
       else list.push({ id: c.id, author: c.author, sourceText: c.sourceText, kind: c.kind, params, status: "active" });
     }
-    storage.set("decision", { ...decision, chosen: optionId });
+    storage.set("decision", { ...decision, chosen: optionId, chosenBy: self.presence.name });
     const steps = storage.get("steps");
     steps.forEach((step, i) => {
       if (step.name !== "parse") steps.set(i, { ...step, status: "pending", summary: "" });
