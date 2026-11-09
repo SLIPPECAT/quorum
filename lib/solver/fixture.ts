@@ -56,10 +56,9 @@ export const demoInput: SolverInput = {
 export const redirectConstraint: Constraint = {
   id: "c-min-judgeb",
   author: "Min",
-  sourceText: "B 심사위원님 4시 비행기라 먼저 가셔야 해요",
+  sourceText: "Judge B has a 4 pm flight, so they need to leave early",
   kind: "judge_unavailable_after",
   params: { judge: "B", time: "16:00" },
-  translation: "Judge B has to leave at 4 pm for a flight",
   status: "active",
 };
 

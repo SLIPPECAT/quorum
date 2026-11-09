@@ -99,7 +99,7 @@ export function proposedRule(
   const date = today();
   return {
     id: `r-${comment.id}`,
-    text: parsed.translation ?? label,
+    text: parsed.translation ?? (comment.text || label),
     subjects: judge ? [{ type: "person", name: judge }] : [{ type: "plan", name: PLAN_NAME }],
     owner: comment.author,
     scope: "Today only?",

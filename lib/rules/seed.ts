@@ -87,7 +87,7 @@ export const demoRules: WorkspaceRule[] = [
     scope: "Today only?",
     status: "proposed",
     source: {
-      quote: "B 심사위원은 4시에 가야 해요",
+      quote: "Judge B has a 4 pm flight, so they need to leave early",
       author: "Min",
       date: "2026-11-09",
       plan: SEOUL,

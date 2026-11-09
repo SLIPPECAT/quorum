@@ -20,7 +20,7 @@ Decisions don't disappear when the session ends. Rules live on a **rule map** th
 Live: https://quorum-c0mpiled17.vercel.app · Built at c0mpiled-17 Seoul, YC RFS Fall 2026 "Multiplayer AI".
 
 1. Ji-won starts a session, loads the demo (60 teams, 8 judges, 4 rooms, 15:00–17:00) and runs the agent: 60 teams placed.
-2. Min comments on the Draft step in Korean ("B 심사위원님 4시 비행기라 먼저 가셔야 해요") and redirects the agent.
+2. Min comments on the Draft step ("Judge B has a 4 pm flight, so they need to leave early") and redirects the agent; Alex's and Ji-won's chat messages come in with it.
 3. The plan no longer fits (8 teams). The agent asks Ji-won and Alex, whose rules collide, and recalls that Ji-won allowed a solo judge in Tokyo.
 4. Ji-won picks A → re-plan → 0 conflicts → locked for everyone → saved to the rule map for all events.
 

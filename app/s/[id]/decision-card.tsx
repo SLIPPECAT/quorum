@@ -265,13 +265,13 @@ export function ResultSummary() {
   const first = feed.find((f) => f.text.includes("redirected the agent") && f.at);
   const lock = [...feed].reverse().find((f) => f.text.includes("locked the schedule") && f.at);
   const secs = first && lock ? Math.max(0, Math.round((lock.at! - first.at!) / 1000)) : null;
-  const elapsed = secs === null ? "—" : secs >= 60 ? `${Math.floor(secs / 60)} min ${secs % 60} s` : `${secs} s`;
+  const elapsed = secs === null ? "—" : `${secs} s`;
   const rows: [string, string][] = [
     ["Messages handled", String(messages)],
     ["Decisions", String(chosen)],
     ["Teams re-notified", String(renotified)],
     ["Cells moved by hand", "0"],
-    ["Time from first message to lock", elapsed],
+    ["First message → locked", elapsed],
   ];
   return (
     <section data-testid="result-summary" className="card p-5">

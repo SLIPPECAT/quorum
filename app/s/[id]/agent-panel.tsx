@@ -75,7 +75,7 @@ export function AgentPanel() {
                         {c.redirected && <span className="text-xs text-muted">· redirected</span>}
                       </p>
                       <p>{c.text}</p>
-                      {c.translation && (
+                      {c.translation && c.translation !== c.text && (
                         <p className="text-xs text-muted" data-testid="translation">
                           Translated · {c.translation}
                         </p>

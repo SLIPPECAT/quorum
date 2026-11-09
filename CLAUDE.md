@@ -43,14 +43,14 @@ Storage:
   - Alex: "Judging has to end by 17:00 — dinner starts right after"
   - Alex: "Judge C can't be in Room 4 — it's upstairs"
   - Min: "Teams 12 and 13 share a member, don't schedule them at the same time"
-- Redirect comment (Min, Korean): "B 심사위원님 4시 비행기라 먼저 가셔야 해요" → judge_unavailable_after { B, 16:00 }, translation "Judge B has to leave at 4 pm for a flight"
+- Redirect comment (Min): "Judge B has a 4 pm flight, so they need to leave early" → judge_unavailable_after { B, 16:00 } (English, so no translation line; the translation feature stays for other languages)
 - Expected after redirect: Room 1 runs 7 slots (15:00–15:56), then no 2-judge panel → 52 placed, 8 unplaced
 - Options: A = panel_min_size 1 for Room 1 from 16:00 (bends Ji-won's rule) → 60 fit by 17:00 · B = end_by 17:24 (bends Alex's end time) → 61 capacity, last slot 17:16–17:24
 - Why it is truly infeasible: judge time 900 min (7 × 120 + B 60) / 16 min per team = 56 max
 
 ## Demo scenario (windows: Ji-won, Min, Alex)
 1. Ji-won: Load demo data → Run agent → 4 steps stream in all windows → 60 teams placed
-2. Min: comment on Draft in Korean → Comment & redirect → constraint shown with translation → re-plan
+2. Min: comment on Draft ("Judge B has a 4 pm flight…") → Comment & redirect → constraint with Min as author → re-plan
 3. Validate: 8 teams unplaced → decision card for Ji-won and Alex
 4. Ji-won picks A → re-plan → 0 conflicts → Locked → feed: "Ji-won chose A"
 

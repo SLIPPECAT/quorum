@@ -46,12 +46,14 @@ function systemPrompt(setup: Setup) {
     `Judges: ${setup.judges.map((j) => `Judge ${j}`).join(", ")}.`,
     `Rooms: ${setup.rooms.join(", ")}.`,
     `Teams: ${setup.teams[0]} to ${setup.teams[setup.teams.length - 1]} (use team numbers).`,
-    `Judging runs ${setup.timing.start}–${setup.timing.end} in ${setup.timing.slotMinutes}-minute slots. Times are 24-hour HH:MM; "4 pm" or "4시" in the afternoon is 16:00.`,
+    `Judging runs ${setup.timing.start}–${setup.timing.end} in ${setup.timing.slotMinutes}-minute slots. Times are 24-hour HH:MM; "4 pm" or "4 o'clock" in the afternoon is 16:00.`,
     "One note is usually one constraint. Drop side information that does not fit a field (reasons, flight details, who said it).",
     'If the note fits none of the kinds, return kind "unsupported".',
     "All output is in English.",
   ].join("\n");
 }
+
+const isEnglish = (s: string) => /^[\u0000-\u007F\u2013\u2014\u2018-\u201D\u2026\u00B7]*$/.test(s);
 
 /** Parse one note. Author is never taken from the model; the caller keeps it. */
 export async function parseNote(text: string, setup: Setup): Promise<ParsedNote> {
@@ -64,9 +66,10 @@ export async function parseNote(text: string, setup: Setup): Promise<ParsedNote>
   });
   const out = message.parsed_output;
   if (message.stop_reason === "refusal" || !out || out.constraint.kind === "unsupported") {
-    return { kind: "unsupported", status: "unsupported", translation: out?.translation ?? undefined };
+    return { kind: "unsupported", status: "unsupported", translation: isEnglish(text) ? undefined : (out?.translation ?? undefined) };
   }
-  const translation = out.translation ?? undefined;
+  // Translation is only for non-English notes; an English note never gets a "Translated" line.
+  const translation = isEnglish(text) ? undefined : (out.translation ?? undefined);
   const c = out.constraint;
   switch (c.kind) {
     case "panel_min_size": {
