@@ -17,12 +17,21 @@ Decisions don't disappear when the session ends. Rules live on a **rule map** th
 
 ## Demo
 
-Live: https://quorum-c0mpiled17.vercel.app · Built at c0mpiled-17 Seoul, YC RFS Fall 2026 "Multiplayer AI".
+Live: https://quorum-c0mpiled17.vercel.app · Video (87 s): https://www.youtube.com/watch?v=ECR_BctBs10 · Built at c0mpiled-17 Seoul, YC RFS Fall 2026 "Multiplayer AI".
 
-1. Ji-won starts a session, loads the demo (60 teams, 8 judges, 4 rooms, 15:00–17:00) and runs the agent: 60 teams placed.
-2. Min comments on the Draft step ("Judge B has a 4 pm flight, so they need to leave early") and redirects the agent; Alex's and Ji-won's chat messages come in with it.
-3. The plan no longer fits (8 teams). The agent asks Ji-won and Alex, whose rules collide, and recalls that Ji-won allowed a solo judge in Tokyo.
-4. Ji-won picks A → re-plan → 0 conflicts → locked for everyone → saved to the rule map for all events.
+Scenario: 40 minutes before judging, the schedule has already been sent to 60 teams. Then four messages arrive at once.
+
+1. **Fits without a fight.** Alex: "Teams 01 and 02 share a mentor." The solver re-plans with no conflicts and 4 teams move. No one's rule bends, so the agent applies it without asking; Ji-won notifies those 4 teams.
+2. **Already known.** Alex: keep Judge C out of Room 4. It's already on the rule map, so nothing changes and nobody explains it twice.
+3. **A real conflict.** Min: "Judge B has a 4 pm flight." Now 8 teams don't fit, and no shuffling can fix it (judge time allows at most 56 teams). The agent asks Ji-won and Alex, whose rules collide, shows what each option costs (A re-notifies 0 teams, B re-notifies 32) and recalls that Ji-won allowed a solo judge in Tokyo.
+4. **Decision → rule.** Ji-won picks A → 0 conflicts → locked for everyone. She saves it as a rule for all events after a code-computed impact preview; it appears live on the team's rule map.
+5. **Not supported yet.** Ji-won: "Room 2's projector is broken until 15:30." The agent can't plan around room outages yet, so it saves a *proposed* rule instead of guessing.
+
+## Next steps
+
+- Direct edits (swap rooms, reassign judges, add or withdraw teams) checked by the same validator, asking a rule's owner before bending it
+- Minimal-change re-planning that keeps published slots fixed (today the solver re-plans from scratch, which is why option B moves 32 teams)
+- Buffers and breaks, and more templates on the same rule map (hiring days, conference sessions, shift rosters)
 
 ## Run locally
 
