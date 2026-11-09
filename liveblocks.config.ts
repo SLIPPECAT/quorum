@@ -44,8 +44,9 @@ export type Setup = {
 };
 
 export type Schedule = {
+  // Same shape as lib/solver: room → slot start (HH:MM) → team / judges.
   slots: { [room: string]: { [time: string]: string | null } };
-  panels: { [time: string]: { [room: string]: string[] } };
+  panels: { [room: string]: { [time: string]: string[] } };
   unplaced: string[];
   conflictingConstraintIds: string[];
   changedCells: string[];

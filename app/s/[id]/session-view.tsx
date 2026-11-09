@@ -5,6 +5,8 @@ import { useOthers, useSelf, useStorage, useUpdateMyPresence } from "@liveblocks
 import { PRESENCE_COLORS } from "@/liveblocks.config";
 import { AgentPanel } from "./agent-panel";
 import { ActivityPanel } from "./activity-panel";
+import { SchedulePanel } from "./schedule-panel";
+import { useLoadDemo, useRunAgent } from "./use-agent";
 
 export type Person = { connectionId: number; name: string; color: string; isSelf: boolean };
 
@@ -36,10 +38,7 @@ export function SessionView() {
         <div className="w-full lg:w-[360px] lg:shrink-0">
           <AgentPanel />
         </div>
-        <section className="card min-w-0 flex-1 p-5">
-          <h2 className="font-display text-lg font-semibold">Schedule</h2>
-          <p className="mt-6 text-sm text-muted">No schedule yet. Run the agent to draft one.</p>
-        </section>
+        <SchedulePanel />
         <div className="w-full lg:w-[320px] lg:shrink-0">
           <ActivityPanel />
         </div>
@@ -50,6 +49,9 @@ export function SessionView() {
 
 function TopBar({ people }: { people: Person[] }) {
   const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const loadDemo = useLoadDemo();
+  const agent = useRunAgent();
   const runningIndex = useStorage((root) => root.steps.findIndex((s) => s.status === "running"));
 
   const share = async () => {
@@ -84,9 +86,35 @@ function TopBar({ people }: { people: Person[] }) {
         >
           {copied ? "Copied" : "Share link"}
         </button>
-        <button className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:opacity-90">
+        <button
+          onClick={agent.run}
+          disabled={agent.disabled}
+          className="rounded-lg bg-ink px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
           Run agent
         </button>
+        <div className="relative">
+          <button
+            aria-label="Menu"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="rounded-lg border border-line px-2.5 py-1.5 text-sm font-medium hover:bg-page"
+          >
+            ⋯
+          </button>
+          {menuOpen && (
+            <div className="card absolute right-0 z-10 mt-1 w-44 p-1 shadow-lg">
+              <button
+                onClick={() => {
+                  loadDemo();
+                  setMenuOpen(false);
+                }}
+                className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-page"
+              >
+                Load demo data
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
