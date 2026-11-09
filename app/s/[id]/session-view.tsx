@@ -84,6 +84,12 @@ function TopBar({ people }: { people: Person[] }) {
           ))}
         </div>
         <span className="text-sm text-muted">{people.length} here</span>
+        <a
+          href={`/w/demo/rules?name=${encodeURIComponent(people.find((p) => p.isSelf)?.name ?? "")}`}
+          className="rounded-lg px-2 py-1.5 text-sm font-medium text-blue hover:underline"
+        >
+          Rule map
+        </a>
         <button
           onClick={share}
           className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:bg-page"
