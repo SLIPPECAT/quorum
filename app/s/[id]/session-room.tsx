@@ -28,6 +28,7 @@ export function SessionRoom({ roomId, name }: { roomId: string; name: string }) 
           decision: null,
           feed: new LiveList([]),
           rules: new LiveList([]),
+          published: null,
         })}
       >
         <ClientSideSuspense

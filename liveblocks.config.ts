@@ -74,7 +74,11 @@ export type Decision = {
   ruleStatus?: "saved" | "dismissed";
 };
 
-export type FeedItem = { time: string; actor: string; text: string };
+// `at` is epoch ms for measured durations (result summary); `time` is the HH:MM label.
+export type FeedItem = { time: string; actor: string; text: string; at?: number };
+
+// Schedule as first sent to teams (after the first clean run).
+export type Published = { slots: Schedule["slots"]; time: string; teams: number };
 
 export type Presence = { name: string; color: string };
 
@@ -89,6 +93,7 @@ export type Storage = {
   feed: LiveList<FeedItem>;
   // Workspace rule map (room `ws-<id>`); an empty list in session rooms.
   rules: LiveList<WorkspaceRule>;
+  published?: Published | null; // optional: absent in rule-map rooms
 };
 
 declare global {

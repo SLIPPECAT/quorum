@@ -39,6 +39,7 @@ type StorageJson = {
   schedule: Schedule;
   decision: Decision | null;
   feed: FeedItem[];
+  published?: { slots: Schedule["slots"]; time: string; teams: number } | null;
 };
 
 type Root = LiveObject<Storage>;
@@ -240,6 +241,14 @@ async function runValidate(s: StorageJson): Promise<StepOutcome> {
       feed: locked ? "Agent re-planned with 0 conflicts and locked the schedule" : "Agent drafted a schedule, 0 conflicts",
       apply: (root) => {
         root.set("schedule", { ...scheduleFrom(result, s.schedule), locked });
+        // The first clean schedule counts as sent to the teams.
+        if (!s.published) {
+          root.set("published", {
+            slots: result.slots,
+            time: now(),
+            teams: s.setup.teams.length - result.unplaced.length,
+          });
+        }
         if (!locked) root.set("decision", null);
       },
     };
@@ -378,7 +387,7 @@ export async function POST(req: Request) {
       const r = root as unknown as Root;
       outcome.apply?.(r);
       patchStep(r, step, { status: outcome.status, summary: outcome.summary });
-      (r.get("feed") as LiveList<FeedItem>).push({ time: now(), actor: "Agent", text: outcome.feed });
+      (r.get("feed") as LiveList<FeedItem>).push({ time: now(), actor: "Agent", text: outcome.feed, at: Date.now() });
     });
     return Response.json({ status: outcome.status });
   } catch (err) {

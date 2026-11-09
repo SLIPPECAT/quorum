@@ -38,7 +38,8 @@ export function useLoadDemo() {
     storage.set("steers", new LiveList([]));
     storage.set("schedule", emptySchedule());
     storage.set("decision", null);
-    storage.get("feed").push({ time: clockTime(), actor: self.presence.name, text: `${self.presence.name} loaded demo data` });
+    storage.set("published", null);
+    storage.get("feed").push({ time: clockTime(), at: Date.now(), actor: self.presence.name, text: `${self.presence.name} loaded demo data` });
   }, []);
 }
 
@@ -52,7 +53,7 @@ export function useRunAgent() {
   const start = useMutation(({ storage, self }) => {
     storage.set("steps", new LiveList(freshSteps()));
     storage.set("schedule", { ...storage.get("schedule"), locked: false });
-    storage.get("feed").push({ time: clockTime(), actor: self.presence.name, text: `${self.presence.name} started the run` });
+    storage.get("feed").push({ time: clockTime(), at: Date.now(), actor: self.presence.name, text: `${self.presence.name} started the run` });
   }, []);
 
   /** Add a comment on a step. With redirect, queue it for parsing and re-plan from parse. */
@@ -66,7 +67,7 @@ export function useRunAgent() {
     storage.set("steps", new LiveList(freshSteps()));
     storage.set("schedule", { ...storage.get("schedule"), locked: false });
     storage.get("feed").push({
-      time: clockTime(),
+      time: clockTime(), at: Date.now(),
       actor: self.presence.name,
       text: `${self.presence.name} redirected the agent from step ${stepNo}`,
     });
@@ -91,7 +92,7 @@ export function useRunAgent() {
       if (step.name !== "parse") steps.set(i, { ...step, status: "pending", summary: "" });
     });
     storage.get("feed").push({
-      time: clockTime(),
+      time: clockTime(), at: Date.now(),
       actor: self.presence.name,
       text: `${self.presence.name} chose ${option.id}: ${option.summary}`,
     });

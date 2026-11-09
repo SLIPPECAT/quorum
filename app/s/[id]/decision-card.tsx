@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useRoom, useSelf, useStorage } from "@liveblocks/react/suspense";
 import { lastUsedSlot, relax, solve, validate, type Change } from "@/lib/solver";
-import { joinNames, ruleName, solverInputFrom } from "@/lib/agent/state";
+import { joinNames, judgeTimeBound, renotifyCount, ruleName, solverInputFrom } from "@/lib/agent/state";
 import { Avatar, colorOf, usePeople } from "./people";
 import { useRunAgent } from "./use-agent";
 
@@ -12,6 +12,7 @@ export function DecisionCard() {
   const setup = useStorage((root) => root.setup);
   const constraints = useStorage((root) => root.constraints);
   const unplaced = useStorage((root) => root.schedule.unplaced.length);
+  const published = useStorage((root) => root.published ?? null);
   const me = useSelf((s) => s.presence.name);
   const people = usePeople();
   const agent = useRunAgent();
@@ -26,10 +27,10 @@ export function DecisionCard() {
         const last = lastUsedSlot(r);
         const placed = setup.teams.length - r.unplaced.length;
         const fit = placed === setup.teams.length ? `all ${placed} teams fit` : `${placed} teams fit`;
-        return [o.id, last ? `${fit}, last slot ${last.start}–${last.end}` : fit];
+        return [o.id, { text: last ? `${fit}, last slot ${last.start}–${last.end}` : fit, renotify: renotifyCount(published?.slots, r.slots) }];
       }),
     );
-  }, [decision, setup, constraints]);
+  }, [decision, setup, constraints, published]);
 
   if (!decision) return null;
   if (decision.chosen) return <RuleSuggestion />;
@@ -85,8 +86,13 @@ export function DecisionCard() {
                   <span className="font-medium" style={{ color: colorOf(people, o.author) }}>
                     {o.author}
                   </span>
-                  &apos;s {rule ? ruleName(rule) : "rule"} · {results[o.id]}
+                  &apos;s {rule ? ruleName(rule) : "rule"} · {results[o.id]?.text}
                 </span>
+                {published && (
+                  <span data-testid={`renotify-${o.id}`} className="mt-1 block text-xs font-semibold">
+                    Re-notify: {results[o.id]?.renotify} team{results[o.id]?.renotify === 1 ? "" : "s"}
+                  </span>
+                )}
               </span>
             </button>
           );
@@ -108,7 +114,9 @@ export function WhyItConflicts() {
     unplaced: root.schedule.unplaced.length,
     teams: root.setup.teams.length,
   }));
+  const setupW = useStorage((root) => root.setup);
   const people = usePeople();
+  const bound = judgeTimeBound(setupW, constraints);
   const rules = ids.map((id) => constraints.find((c) => c.id === id)).filter((c) => !!c);
   if (!rules.length) return null;
 
@@ -126,6 +134,9 @@ export function WhyItConflicts() {
           </span>
         ))}
         . Together they leave room for only {counts.teams - counts.unplaced} of {counts.teams} teams.
+      </p>
+      <p data-testid="judge-time" className="mt-2 text-sm font-medium">
+        Judge time: {bound.minutes} min ÷ {bound.perTeam} min per team = at most {bound.maxTeams} teams
       </p>
     </section>
   );
@@ -235,6 +246,44 @@ function RuleSuggestion() {
       </div>
       {error && <p className="mt-2 text-xs text-orange">{error}</p>}
       <p className="mt-3 text-xs text-muted">Rules belong to people. Only {owner} can save this one.</p>
+    </section>
+  );
+}
+
+/** After Locked: what the session handled, computed from shared state and feed timestamps. */
+export function ResultSummary() {
+  const locked = useStorage((root) => root.schedule.locked);
+  const slots = useStorage((root) => root.schedule.slots);
+  const published = useStorage((root) => root.published ?? null);
+  const comments = useStorage((root) => root.comments);
+  const chosen = useStorage((root) => (root.decision?.chosen ? 1 : 0));
+  const feed = useStorage((root) => root.feed);
+  if (!locked) return null;
+
+  const messages = Object.values(comments).flat().filter((c) => c.agentReply).length;
+  const renotified = renotifyCount(published?.slots, slots);
+  const first = feed.find((f) => f.text.includes("redirected the agent") && f.at);
+  const lock = [...feed].reverse().find((f) => f.text.includes("locked the schedule") && f.at);
+  const secs = first && lock ? Math.max(0, Math.round((lock.at! - first.at!) / 1000)) : null;
+  const elapsed = secs === null ? "—" : secs >= 60 ? `${Math.floor(secs / 60)} min ${secs % 60} s` : `${secs} s`;
+  const rows: [string, string][] = [
+    ["Messages handled", String(messages)],
+    ["Decisions", String(chosen)],
+    ["Teams re-notified", String(renotified)],
+    ["Cells moved by hand", "0"],
+    ["Time from first message to lock", elapsed],
+  ];
+  return (
+    <section data-testid="result-summary" className="card p-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-teal">Locked · result</p>
+      <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-sm">
+        {rows.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-muted">{k}</dt>
+            <dd className="text-right font-semibold tabular-nums">{v}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }

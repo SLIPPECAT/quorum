@@ -34,3 +34,41 @@ export function ruleName(c: ReadonlyConstraint): string {
   if (c.kind === "teams_not_concurrent") return "team overlap rule";
   return "rule";
 }
+
+type Slots = { readonly [room: string]: { readonly [time: string]: string | null } };
+
+/** Teams whose cell differs from the published schedule (moved or now unplaced). Teams back in their original cell don't count. */
+export function renotifyCount(published: Slots | null | undefined, next: Slots): number {
+  if (!published) return 0;
+  const cellOf = (slots: Slots) => {
+    const m = new Map<string, string>();
+    for (const [room, times] of Object.entries(slots)) for (const [t, team] of Object.entries(times)) if (team) m.set(team, `${room}|${t}`);
+    return m;
+  };
+  const before = cellOf(published);
+  const after = cellOf(next);
+  let n = 0;
+  for (const [team, cell] of before) if (after.get(team) !== cell) n++;
+  return n;
+}
+
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+/** Judge time available before the end, divided by judge-minutes per team (panel size × slot length). */
+export function judgeTimeBound(setup: ReadonlySetup, constraints: readonly ReadonlyConstraint[]) {
+  const active = constraints.filter((c) => c.status === "active");
+  const p = (c: ReadonlyConstraint) => (c.params ?? {}) as Record<string, unknown>;
+  const ends = active.filter((c) => c.kind === "end_by" && typeof p(c).time === "string").map((c) => toMin(p(c).time as string));
+  const start = toMin(setup.timing.start);
+  const end = ends.length ? Math.min(...ends) : toMin(setup.timing.end);
+  let minutes = 0;
+  for (const judge of setup.judges as readonly string[]) {
+    const leaves = active
+      .filter((c) => c.kind === "judge_unavailable_after" && p(c).judge === judge && typeof p(c).time === "string")
+      .map((c) => toMin(p(c).time as string));
+    minutes += Math.max(0, Math.min(end, ...leaves) - start);
+  }
+  const panel = active.find((c) => c.kind === "panel_min_size" && !p(c).room && !p(c).from);
+  const perTeam = (typeof p(panel ?? {}).size === "number" ? (p(panel!).size as number) : 1) * setup.timing.slotMinutes;
+  return { minutes, perTeam, maxTeams: Math.floor(minutes / perTeam) };
+}

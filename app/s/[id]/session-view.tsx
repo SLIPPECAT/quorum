@@ -6,7 +6,7 @@ import { Avatar, usePeople, type Person } from "./people";
 import { AgentPanel } from "./agent-panel";
 import { ActivityPanel } from "./activity-panel";
 import { SchedulePanel } from "./schedule-panel";
-import { DecisionCard, WhyItConflicts } from "./decision-card";
+import { DecisionCard, ResultSummary, WhyItConflicts } from "./decision-card";
 import { joinNames } from "@/lib/agent/state";
 import { useLoadDemo, useRunAgent } from "./use-agent";
 
@@ -32,6 +32,7 @@ export function SessionView() {
         </div>
         <div className="flex w-full flex-col gap-4 lg:w-[320px] lg:shrink-0">
           <DecisionCard />
+          <ResultSummary />
           <ActivityPanel />
         </div>
       </main>
@@ -49,6 +50,7 @@ function TopBar({ people }: { people: Person[] }) {
     root.decision && !root.decision.chosen ? root.decision.askedAuthors.join("|") : "",
   );
   const locked = useStorage((root) => root.schedule.locked);
+  const published = useStorage((root) => root.published ?? null);
 
   const share = async () => {
     const url = new URL(window.location.href);
@@ -62,6 +64,11 @@ function TopBar({ people }: { people: Person[] }) {
     <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-white px-4 py-3">
       <span className="font-display text-xl font-semibold">Quorum</span>
       <span className="text-sm text-muted">c0mpiled-17 Seoul / Judging schedule</span>
+      {published && (
+        <span data-testid="published" className="rounded-full border border-line px-2.5 py-1 text-xs text-muted">
+          Published to {published.teams} teams · {published.time}
+        </span>
+      )}
       <div className="min-w-0" data-testid="status-badge">
         {locked ? (
           <span className="rounded-full bg-teal/10 px-2.5 py-1 text-xs font-medium text-teal">
